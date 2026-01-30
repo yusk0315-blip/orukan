@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>オルカン 予期せぬイベント込み シミュレーター</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#111827" />
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;margin:0;background:#f3f4f6;color:#111827}
+    .wrap{max-width:920px;margin:0 auto;padding:16px 14px 84px}
+    h1{font-size:20px;margin:6px 0 10px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    label{font-size:12px;color:#374151;display:block;margin:0 0 6px}
+    input{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    button{border:0;border-radius:12px;padding:12px 14px;font-size:15px;font-weight:800;background:#111827;color:#fff;cursor:pointer}
+    button.secondary{background:#e5e7eb;color:#111827}
+    .note{font-size:12px;color:#6b7280;line-height:1.55}
+    .kpi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+    .kpi .box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+    .kpi .t{font-size:12px;color:#6b7280}
+    .kpi .v{font-size:18px;font-weight:900;margin-top:4px}
+    .warn{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:10px 12px;border-radius:12px;font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+    th,td{border-bottom:1px solid #e5e7eb;padding:10px 6px;text-align:right;white-space:nowrap}
+    th:first-child,td:first-child{text-align:left}
+    canvas{width:100%;height:240px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#111827;color:#fff}
+    .foot{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.92);backdrop-filter: blur(8px);
+      border-top:1px solid #e5e7eb;padding:10px 14px;}
+    .foot .inner{max-width:920px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .small{font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>オルカン（世界株）予期せぬイベント込みシミュレーター</h1>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>初期投資（円）</label>
+        <input id="initial" type="number" inputmode="numeric" value="500000" min="0" step="1000" />
+      </div>
+      <div>
+        <label>毎月の積立（円）</label>
+        <input id="monthly" type="number" inputmode="numeric" value="50000" min="0" step="1000" />
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:10px">
+      <div>
+        <label>期間（年）</label>
+        <input id="years" type="number" inputmode="numeric" value="10" min="1" step="1" />
+      </div>
+      <div>
+        <label>平均リターン（年率 %）</label>
+        <input id="mu" type="number" inputmode="decimal" value="6.0" step="0.1" />
+      </div>
+      <div>
+        <label>ブレ幅（年率の標準偏差 %）</label>
+        <input id="sigma" type="number" inputmode="decimal" value="16.0" step="0.5" />
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:10px">
+      <div>
+        <label>信託報酬など（年率 %）</label>
+        <input id="fee" type="number" inputmode="decimal" value="0.10" min="0" step="0.01" />
+      </div>
+      <div>
+        <label>試行回数（回）</label>
+        <input id="trials" type="number" inputmode="numeric" value="1000" min="100" step="100" />
+      </div>
+      <div>
+        <label>シード（空欄＝毎回ランダム）</label>
+        <input id="seed" type="number" inputmode="numeric" placeholder="例：2026（固定したい時だけ）" />
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:10px">
+      <div>
+        <label>世界恐慌（年）発生確率</label>
+        <input id="p_depression" type="number" inputmode="decimal" value="0.5" step="0.1" />
+        <div class="note">％/年（発生年は <b>-50%</b>）</div>
+      </div>
+      <div>
+        <label>AIバブル崩壊（年）発生確率</label>
+        <input id="p_ai" type="number" inputmode="decimal" value="1.0" step="0.1" />
+        <div class="note">％/年（発生年は <b>-35%</b>）</div>
+      </div>
+      <div>
+        <label>〇〇バブル再来（年）発生確率</label>
+        <input id="p_boom" type="number" inputmode="decimal" value="2.0" step="0.1" />
+        <div class="note">％/年（発生年は <b>+25%</b>）</div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:10px">
+      ・毎年リターンはランダム（平均mu／ブレsigma）。<br>
+      ・イベントが起きた年はリターンを強制上書き。<br>
+      ・利回りは「最終評価額 ÷ 累計投資額」から年率換算した<b>ざっくり年平均</b>。
+    </div>
+
+    <div class="btns">
+      <button onclick="run()">シミュレーション（毎回変わる）</button>
+      <button class="secondary" onclick="preset()">おすすめ設定に戻す</button>
+      <button class="secondary" onclick="copySummary()">結果をコピー</button>
+    </div>
+  </div>
+
+  <div id="err" class="warn" style="display:none"></div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><span class="pill">最終結果（1000回分布）</span></div>
+      <div class="note" id="meta"></div>
+    </div>
+
+    <div class="kpi">
+      <div class="box">
+        <div class="t">最終評価額：5%（悪い寄り）</div>
+        <div class="v" id="p5">-</div>
+        <div class="t" id="p5m">-</div>
+      </div>
+      <div class="box">
+        <div class="t">最終評価額：50%（中央値）</div>
+        <div class="v" id="p50">-</div>
+        <div class="t" id="p50m">-</div>
+      </div>
+      <div class="box">
+        <div class="t">最終評価額：95%（好景気寄り）</div>
+        <div class="v" id="p95">-</div>
+        <div class="t" id="p95m">-</div>
+      </div>
+    </div>
+
+    <div class="kpi" style="margin-top:10px">
+      <div class="box">
+        <div class="t">元本割れ確率（最終が累計投資を下回る）</div>
+        <div class="v" id="underProb">-</div>
+        <div class="t" id="underMeta">-</div>
+      </div>
+      <div class="box">
+        <div class="t">平均最終評価額（1000回の平均）</div>
+        <div class="v" id="meanFinal">-</div>
+        <div class="t" id="meanMeta">-</div>
+      </div>
+      <div class="box">
+        <div class="t">平均年利回り（ざっくり）</div>
+        <div class="v" id="meanRate">-</div>
+        <div class="t" id="rateMeta">-</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <canvas id="chart" width="920" height="240"></canvas>
+      <div class="note" style="margin-top:8px">帯：5%〜95%／線：中央値</div>
+    </div>
+
+    <table id="tbl" style="display:none">
+      <thead>
+      <tr>
+        <th>年</th>
+        <th>累計投資</th>
+        <th>5%</th>
+        <th>50%</th>
+        <th>95%</th>
+      </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><span class="pill">3つにまとめ（下位10% / 中央80% / 上位10%）</span></div>
+      <div class="note">「何%で 平均利回り〇〇%」＋「平均最終金額」</div>
+    </div>
+
+    <div id="rtbl" style="display:none"></div>
+    <div class="note" style="margin-top:8px">
+      ※「年平均利回り」は簡易。厳密なIRRではない（でも比較用途には十分強い）。
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <div class="inner">
+    <div class="small">PWA対応：Safariで共有 →「ホーム画面に追加」</div>
+    <div style="display:flex;gap:10px">
+      <button class="secondary" onclick="copySummary()">結果をコピー</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const yen = (n)=> "¥" + Math.round(n).toLocaleString("ja-JP");
+  const pct = (x)=> (x*100).toFixed(2) + "%";
+
+  // RNG (seed)
+  function mulberry32(a){
+    return function(){
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+  }
+  function randn(rng){
+    let u = 0, v = 0;
+    while(u === 0) u = rng();
+    while(v === 0) v = rng();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  }
+
+  function preset(){
+    initial.value=500000;
+    monthly.value=50000;
+    years.value=10;
+    mu.value=6.0;
+    sigma.value=16.0;
+    fee.value=0.10;
+    trials.value=1000;
+    seed.value="";
+    p_depression.value=0.5;
+    p_ai.value=1.0;
+    p_boom.value=2.0;
+    run();
+  }
+
+  function percentile(sorted, p){
+    if(sorted.length===0) return 0;
+    const idx = (sorted.length-1)*p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    if(lo===hi) return sorted[lo];
+    const w = idx - lo;
+    return sorted[lo]*(1-w) + sorted[hi]*w;
+  }
+
+  function annualizedRough(finalValue, totalInvested, years){
+    if(totalInvested <= 0) return 0;
+    const ratio = finalValue / totalInvested;
+    if(ratio <= 0) return -1;
+    return Math.pow(ratio, 1/years) - 1;
+  }
+
+  function simulateOne({P0,m,years,mu,sigma,fee,pDep,pAI,pBoom,rng}){
+    const rDep = -0.50, rAI = -0.35, rBoom = +0.25;
+
+    let v = P0;
+    let invested = P0;
+
+    const yearEnd = [{year:0, invested, value:v}];
+
+    for(let y=1;y<=years;y++){
+      let r = (mu - fee)/100 + (sigma/100)*randn(rng);
+
+      const roll = rng();
+      if(roll < pDep){
+        r = rDep;
+      }else if(roll < pDep + pAI){
+        r = rAI;
+      }else if(roll < pDep + pAI + pBoom){
+        r = rBoom;
+      }
+
+      // 毎月積立 → 年末に年リターン反映（簡易）
+      for(let i=0;i<12;i++){
+        v += m; invested += m;
+      }
+      v = v * (1 + r);
+
+      yearEnd.push({year:y, invested, value:v});
+    }
+    return {yearEnd};
+  }
+
+  function drawChart(stats){
+    const canvas = document.getElementById("chart");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    const padL=52,padR=16,padT=16,padB=28;
+    const plotW=W-padL-padR, plotH=H-padT-padB;
+
+    const years = stats.length-1;
+    const maxV = Math.max(...stats.map(s=>s.p95));
+    const minV = Math.min(0, ...stats.map(s=>s.p5));
+
+    const x = (yr)=> padL + (yr/years)*plotW;
+    const y = (val)=> padT + (1 - (val-minV)/(maxV-minV || 1))*plotH;
+
+    ctx.strokeStyle="#e5e7eb"; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(padL,padT);
+    ctx.lineTo(padL,padT+plotH);
+    ctx.lineTo(padL+plotW,padT+plotH);
+    ctx.stroke();
+
+    // band (5-95)
+    ctx.fillStyle="rgba(17,24,39,0.12)";
+    ctx.beginPath();
+    stats.forEach((s,i)=>{
+      const xx=x(i), yy=y(s.p95);
+      if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+    });
+    for(let i=stats.length-1;i>=0;i--){
+      const s=stats[i];
+      ctx.lineTo(x(i), y(s.p5));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // median
+    ctx.strokeStyle="#111827"; ctx.lineWidth=2;
+    ctx.beginPath();
+    stats.forEach((s,i)=>{
+      const xx=x(i), yy=y(s.p50);
+      if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+    });
+    ctx.stroke();
+  }
+
+  async function copySummary(){
+    const text = [
+      "【オルカン：予期せぬイベント込み】",
+      document.getElementById("meta").textContent,
+      `5%：${document.getElementById("p5").textContent}`,
+      `50%：${document.getElementById("p50").textContent}`,
+      `95%：${document.getElementById("p95").textContent}`,
+      `元本割れ確率：${document.getElementById("underProb").textContent}`,
+      `平均最終：${document.getElementById("meanFinal").textContent}`,
+      `平均年利：${document.getElementById("meanRate").textContent}`,
+      "",
+      "【3つにまとめ】",
+      document.getElementById("rtbl").innerText
+    ].join("\n");
+
+    try{
+      await navigator.clipboard.writeText(text);
+      alert("コピーしたよ！");
+    }catch(e){
+      prompt("手動コピーしてね👇", text);
+    }
+  }
+
+  function run(){
+    const err = document.getElementById("err");
+    err.style.display="none"; err.textContent="";
+
+    const P0 = Number(initial.value);
+    const m = Number(monthly.value);
+    const Y = Number(years.value);
+    const MU = Number(mu.value);
+    const SIG = Number(sigma.value);
+    const FEE = Number(fee.value);
+    const T = Number(trials.value);
+
+    const pDep = Number(p_depression.value)/100;
+    const pAI  = Number(p_ai.value)/100;
+    const pBoom= Number(p_boom.value)/100;
+
+    if([P0,m,Y,MU,SIG,FEE,T,pDep,pAI,pBoom].some(v=>!isFinite(v)) || Y<=0 || T<100 || P0<0 || m<0){
+      err.style.display="block";
+      err.textContent="入力値を確認してね（期間/試行回数/マイナス/空欄など）";
+      return;
+    }
+    if(pDep+pAI+pBoom>0.5){
+      err.style.display="block";
+      err.textContent="イベント確率が高すぎるかも（合計は年50%以下くらい推奨）";
+      return;
+    }
+
+    let s = seed.value.trim()==="" ? Math.floor(Math.random()*1e9) : Number(seed.value);
+    if(!isFinite(s)) s = Math.floor(Math.random()*1e9);
+    const rng = mulberry32(s>>>0);
+
+    // yearly distribution
+    const perYear = Array.from({length:Y+1}, (_,i)=>({year:i, invested: P0 + m*12*i, vals: []}));
+
+    // for final stats + 3-zone
+    const results = []; // { rate, final, invested }
+    let underwaterCount = 0;
+    let sumFinal = 0;
+    let sumRate = 0;
+
+    for(let t=0;t<T;t++){
+      const trialSeed = Math.floor(rng()*1e9) ^ (t*2654435761);
+      const trng = mulberry32(trialSeed>>>0);
+
+      const sim = simulateOne({
+        P0, m, years:Y, mu:MU, sigma:SIG, fee:FEE,
+        pDep, pAI, pBoom,
+        rng: trng
+      });
+
+      sim.yearEnd.forEach((p)=> perYear[p.year].vals.push(p.value));
+
+      const last = sim.yearEnd[sim.yearEnd.length-1];
+      const rate = annualizedRough(last.value, last.invested, Y);
+
+      results.push({ rate, final: last.value, invested: last.invested });
+
+      if(last.value < last.invested) underwaterCount++;
+      sumFinal += last.value;
+      sumRate += rate;
+    }
+
+    // percentiles (final)
+    const stats = perYear.map(p=>{
+      const a = p.vals.slice().sort((x,y)=>x-y);
+      return {
+        year: p.year,
+        invested: p.invested,
+        p5: percentile(a, 0.05),
+        p50: percentile(a, 0.50),
+        p95: percentile(a, 0.95)
+      };
+    });
+
+    const lastYear = stats[stats.length-1];
+    document.getElementById("p5").textContent  = yen(lastYear.p5);
+    document.getElementById("p50").textContent = yen(lastYear.p50);
+    document.getElementById("p95").textContent = yen(lastYear.p95);
+
+    document.getElementById("p5m").textContent  = `累計投資 ${yen(lastYear.invested)}`;
+    document.getElementById("p50m").textContent = `累計投資 ${yen(lastYear.invested)}`;
+    document.getElementById("p95m").textContent = `累計投資 ${yen(lastYear.invested)}`;
+
+    // underwater probability
+    const underProb = underwaterCount / T;
+    document.getElementById("underProb").textContent = pct(underProb);
+    document.getElementById("underMeta").textContent = `（${underwaterCount} / ${T} 回）`;
+
+    // means
+    const meanFinal = sumFinal / T;
+    const meanRate = sumRate / T;
+    document.getElementById("meanFinal").textContent = yen(meanFinal);
+    document.getElementById("meanMeta").textContent = `累計投資 ${yen(lastYear.invested)}`;
+    document.getElementById("meanRate").textContent = (meanRate*100).toFixed(2) + "%";
+    document.getElementById("rateMeta").textContent = "（ざっくり年平均）";
+
+    // meta
+    document.getElementById("meta").textContent =
+      `期間${Y}年 / 試行${T}回 / 平均${MU}% / ブレ${SIG}% / 手数料${FEE}% / seed=${seed.value.trim()==="" ? "ランダム" : seed.value.trim()}（内部seed=${s}）`;
+
+    // year table
+    const tbody = document.querySelector("#tbl tbody");
+    tbody.innerHTML="";
+    stats.forEach(s=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${s.year}年</td>
+        <td>${yen(s.invested)}</td>
+        <td>${yen(s.p5)}</td>
+        <td>${yen(s.p50)}</td>
+        <td>${yen(s.p95)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    document.getElementById("tbl").style.display="";
+
+    drawChart(stats);
+
+    // ===== 3ゾーン（下位10 / 中央80 / 上位10）=====
+    results.sort((a,b)=>a.rate-b.rate);
+    const n = results.length;
+    const lowEnd = Math.floor(n * 0.10);
+    const highStart = Math.floor(n * 0.90);
+
+    const worst = results.slice(0, lowEnd);
+    const normal = results.slice(lowEnd, highStart);
+    const best = results.slice(highStart);
+
+    const avg = (arr, key)=> arr.reduce((s,v)=>s+v[key],0) / (arr.length || 1);
+
+    const rhtml = `
+      <table>
+        <thead>
+          <tr>
+            <th>シナリオ</th>
+            <th>確率</th>
+            <th>平均利回り</th>
+            <th>平均最終金額</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>📉 悪い（下位10%）</td>
+            <td>10%</td>
+            <td>${(avg(worst,"rate")*100).toFixed(2)}%</td>
+            <td>${yen(avg(worst,"final"))}</td>
+          </tr>
+          <tr>
+            <td>📊 通常（中央80%）</td>
+            <td>80%</td>
+            <td>${(avg(normal,"rate")*100).toFixed(2)}%</td>
+            <td>${yen(avg(normal,"final"))}</td>
+          </tr>
+          <tr>
+            <td>🚀 好景気（上位10%）</td>
+            <td>10%</td>
+            <td>${(avg(best,"rate")*100).toFixed(2)}%</td>
+            <td>${yen(avg(best,"final"))}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rtbl = document.getElementById("rtbl");
+    rtbl.innerHTML = rhtml;
+    rtbl.style.display = "";
+  }
+
+  // PWA: service worker
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    });
+  }
+
+  run();
+</script>
+</body>
+</html>
